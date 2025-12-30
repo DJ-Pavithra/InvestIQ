@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>InvestIQ - Multi-Agent Investment Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>InvestIQ</h1>
+            <p class="subtitle">Multi-Agent Investment Analysis System</p>
+        </header>
+
+        <div class="main-content">
+            <div class="input-section">
+                <form id="analysis-form">
+                    <div class="input-group">
+                        <label for="symbol">Stock Symbol:</label>
+                        <input 
+                            type="text" 
+                            id="symbol" 
+                            name="symbol" 
+                            placeholder="e.g., AAPL, MSFT, GOOGL" 
+                            required
+                            autocomplete="off"
+                        >
+                        <button type="submit" id="analyze-btn">
+                            <span class="btn-text">Analyze</span>
+                            <span class="btn-loading" style="display: none;">Analyzing...</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="error-message" class="error-message" style="display: none;"></div>
+
+            <div id="results-section" style="display: none;">
+                <!-- Final Decision Card -->
+                <div class="card decision-card">
+                    <h2>Final Decision</h2>
+                    <div class="decision-content">
+                        <div class="recommendation-badge" id="recommendation-badge"></div>
+                        <div class="decision-details">
+                            <div class="detail-item">
+                                <span class="label">Symbol:</span>
+                                <span class="value" id="decision-symbol"></span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Confidence:</span>
+                                <span class="value" id="decision-confidence"></span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="label">Combined Score:</span>
+                                <span class="value" id="decision-score"></span>
+                            </div>
+                            <div class="detail-item full-width">
+                                <span class="label">Reason:</span>
+                                <span class="value" id="decision-reason"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agent Scores -->
+                <div class="card scores-card">
+                    <h2>Agent Breakdown</h2>
+                    <div class="scores-grid">
+                        <div class="score-item">
+                            <div class="score-label">Fundamental</div>
+                            <div class="score-value" id="score-fundamental"></div>
+                            <div class="score-bias" id="bias-fundamental"></div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-label">Sentiment</div>
+                            <div class="score-value" id="score-sentiment"></div>
+                            <div class="score-bias" id="bias-sentiment"></div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-label">Technical</div>
+                            <div class="score-value" id="score-technical"></div>
+                            <div class="score-bias" id="bias-technical"></div>
+                        </div>
+                        <div class="score-item">
+                            <div class="score-label">Risk</div>
+                            <div class="score-value" id="score-risk"></div>
+                            <div class="score-bias" id="bias-risk"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Detailed Analysis -->
+                <div class="card detailed-analysis-card">
+                    <h2>Detailed Analysis</h2>
+                    <div class="analysis-tabs">
+                        <button class="tab-btn active" data-tab="fundamental">Fundamental</button>
+                        <button class="tab-btn" data-tab="sentiment">Sentiment</button>
+                        <button class="tab-btn" data-tab="technical">Technical</button>
+                        <button class="tab-btn" data-tab="risk">Risk</button>
+                    </div>
+                    <div class="tab-content active" id="tab-fundamental">
+                        <div id="details-fundamental"></div>
+                    </div>
+                    <div class="tab-content" id="tab-sentiment">
+                        <div id="details-sentiment"></div>
+                    </div>
+                    <div class="tab-content" id="tab-technical">
+                        <div id="details-technical"></div>
+                    </div>
+                    <div class="tab-content" id="tab-risk">
+                        <div id="details-risk"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>InvestIQ combines Fundamental Analysis, Sentiment Analysis, Technical Analysis, and Risk Management</p>
+        </footer>
+    </div>
+
+    <script>
+        const form = document.getElementById('analysis-form');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const btnText = analyzeBtn.querySelector('.btn-text');
+        const btnLoading = analyzeBtn.querySelector('.btn-loading');
+        const resultsSection = document.getElementById('results-section');
+        const errorMessage = document.getElementById('error-message');
+
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const symbol = document.getElementById('symbol').value.trim().toUpperCase();
+            
+            if (!symbol) {
+                showError('Please enter a stock symbol');
+                return;
+            }
+
+            // Show loading state
+            analyzeBtn.disabled = true;
+            btnText.style.display = 'none';
+            btnLoading.style.display = 'inline';
+            resultsSection.style.display = 'none';
+            errorMessage.style.display = 'none';
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ symbol: symbol })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data.decision);
+                } else {
+                    showError(data.error || 'Analysis failed. Please try again.');
+                }
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            } finally {
+                // Reset button state
+                analyzeBtn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoading.style.display = 'none';
+            }
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+            resultsSection.style.display = 'none';
+        }
+
+        function displayResults(decision) {
+            // Display final decision
+            document.getElementById('decision-symbol').textContent = decision.symbol;
+            document.getElementById('decision-confidence').textContent = decision.confidence + '%';
+            document.getElementById('decision-score').textContent = decision.combined_score + '/100';
+            document.getElementById('decision-reason').textContent = decision.reason;
+
+            // Set recommendation badge
+            const badge = document.getElementById('recommendation-badge');
+            badge.textContent = decision.recommendation;
+            badge.className = 'recommendation-badge ' + decision.recommendation.toLowerCase();
+
+            // Display agent scores
+            document.getElementById('score-fundamental').textContent = decision.agent_scores.fundamental + '/100';
+            document.getElementById('bias-fundamental').textContent = decision.agent_biases.fundamental;
+            document.getElementById('score-sentiment').textContent = decision.agent_scores.sentiment + '/100';
+            document.getElementById('bias-sentiment').textContent = decision.agent_biases.sentiment;
+            document.getElementById('score-technical').textContent = decision.agent_scores.technical + '/100';
+            document.getElementById('bias-technical').textContent = decision.agent_biases.technical;
+            document.getElementById('score-risk').textContent = decision.agent_scores.risk + '/100';
+            document.getElementById('bias-risk').textContent = decision.agent_biases.risk;
+
+            // Display detailed analysis
+            displayDetailedAnalysis('fundamental', decision.detailed_analysis.fundamental);
+            displayDetailedAnalysis('sentiment', decision.detailed_analysis.sentiment);
+            displayDetailedAnalysis('technical', decision.detailed_analysis.technical);
+            displayDetailedAnalysis('risk', decision.detailed_analysis.risk);
+
+            // Show results
+            resultsSection.style.display = 'block';
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function displayDetailedAnalysis(type, analysis) {
+            const container = document.getElementById('details-' + type);
+            let html = '';
+
+            if (analysis.insights && analysis.insights.length > 0) {
+                html += '<div class="insights-section"><h3>Insights</h3><ul>';
+                analysis.insights.forEach(insight => {
+                    html += `<li>${insight}</li>`;
+                });
+                html += '</ul></div>';
+            }
+
+            if (analysis.score !== undefined) {
+                html += `<div class="detail-row"><strong>Score:</strong> ${analysis.score}/100</div>`;
+            }
+
+            if (analysis.bias) {
+                html += `<div class="detail-row"><strong>Bias:</strong> ${analysis.bias}</div>`;
+            }
+
+            if (analysis.risk_level) {
+                html += `<div class="detail-row"><strong>Risk Level:</strong> ${analysis.risk_level}</div>`;
+            }
+
+            if (analysis.metrics && Object.keys(analysis.metrics).length > 0) {
+                html += '<div class="metrics-section"><h3>Metrics</h3><div class="metrics-grid">';
+                for (const [key, value] of Object.entries(analysis.metrics)) {
+                    if (typeof value === 'number') {
+                        html += `<div class="metric-item"><span class="metric-key">${formatMetricKey(key)}:</span><span class="metric-value">${value.toFixed(2)}</span></div>`;
+                    }
+                }
+                html += '</div></div>';
+            }
+
+            container.innerHTML = html || '<p>No detailed information available.</p>';
+        }
+
+        function formatMetricKey(key) {
+            return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        }
+
+        // Tab functionality
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tabName = btn.dataset.tab;
+                
+                // Remove active class from all tabs and contents
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                
+                // Add active class to clicked tab and corresponding content
+                btn.classList.add('active');
+                document.getElementById('tab-' + tabName).classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
+

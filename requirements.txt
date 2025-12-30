@@ -6,3 +6,5 @@ yfinance
 numpy
 pandas
 textblob
+flask
+gunicorn
